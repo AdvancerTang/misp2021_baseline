@@ -23,10 +23,6 @@ from model.DS_CNN import KWS_Net
 # from model.res15 import KWS_Net
 # from model.audio_kwsnet import KWS_Net
 
-# bad
-# from model.DScnn_attention import KWS_Net
-# from model.DCN import KWS_Net
-
 from reader.data_reader_audio import myDataLoader, myDataset
 
 
@@ -86,13 +82,14 @@ def main(args):
     nnet = nnet.cuda()
 
     # training setups
-    optimizer = optim.Adam(nnet.parameters(), lr=args.lr)
+    optimizer = optim.Adam(nnet.parameters(), lr=args.lr, weight_decay=1e-4)
     BCE_loss = torch.nn.BCEWithLogitsLoss(pos_weight=torch.tensor(1.0))
+    # BCE_loss = torch.nn.BCEWithLogitsLoss()
 
     # tensorboard
     total_train_step = 0
     total_test_step = 0
-    writer = SummaryWriter("logs_train")
+    writer = SummaryWriter("logs")
 
     for iter_ in range(args.end_iter):
         print("-----------第 {} 轮训练开始----------".format(iter_ + 1))
@@ -207,7 +204,7 @@ if __name__ == "__main__":
     parser.add_argument("--logdir", default='./log/', type=str)
     parser.add_argument("--model_name", default='kws_audio', type=str)
     parser.add_argument("--start_iter", default=0, type=int)
-    parser.add_argument("--end_iter", default=13, type=int)
+    parser.add_argument("--end_iter", default=50, type=int)
     parser.add_argument("--gpu", default="0", type=str)
     parser.add_argument("--train_num_workers", default=2, type=int, help="number of training workers")
     parser.add_argument("--dev_num_workers", default=1, type=int, help="number of validation workers")

@@ -11,7 +11,8 @@ import random
 from tqdm import tqdm
 sys.path.append("..")
 from tools import utils
-from model.audio_kwsnet import KWS_Net 
+from model.DS_CNN import KWS_Net
+# from model.audio_kwsnet import KWS_Net
 from reader.data_reader_audio import myDataLoader, myDataset
 
 def test(args):
@@ -45,8 +46,14 @@ def test(args):
     # define and load model
     nnet = KWS_Net(args=args)
     nnet = nnet.cuda()
-    trained_kws_model =  torch.load(trained_model)
-    nnet.load_state_dict(trained_kws_model)
+
+    model_dict = nnet.state_dict()
+    pretrained_dict = torch.load(trained_model)
+    pretrained_dict = {k: v for k, v in pretrained_dict.items() if k in model_dict}
+    model_dict.update(pretrained_dict)
+    nnet.load_state_dict(model_dict)
+    # trained_kws_model = torch.load(trained_model)
+    # nnet.load_state_dict(trained_kws_model)
 
     start_time = time.time()
 
@@ -98,7 +105,7 @@ if __name__=="__main__":
     parser.add_argument("--lstm_num_layers", default=1, type=int)
     parser.add_argument("--gpu", default="0", type=str)
     parser.add_argument("--num_workers", default=1, type=int, help="number of validation workers")
-    parser.add_argument("--load_model", default='./trained_model/KWS_Lite_Net_1ch_0.model', type=str, help="load audio trained model")
+    parser.add_argument("--load_model", default='./good/kws_audio_18.model', type=str, help="load audio trained model")
     parser.add_argument("--result_dir", default='../kws_net_fusion/result/', type=str, help="result directory")
     args = parser.parse_args()
     

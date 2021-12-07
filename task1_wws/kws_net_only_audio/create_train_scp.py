@@ -11,7 +11,7 @@ def find_wav(data_root, scp_dir, scp_name='wpe'):
         all_wav_paths += glob.glob(i)
     sorted_wav_paths = sorted(all_wav_paths)
     lines = ['' for _ in range(1)]
-    for wav_idx in range(len(sorted_wav_paths[:2000])):
+    for wav_idx in range(len(sorted_wav_paths[:4000])):
         line = sorted_wav_paths[wav_idx]
         if 'negative' in scp_name or 'dev' in scp_name:
             fs, data = wf.read(line)
@@ -38,7 +38,7 @@ def find_wav(data_root, scp_dir, scp_name='wpe'):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument("--data_root", default=r'G:\py_ty\misp2021_baseline\task1_wws\data1', type=str)
+    parser.add_argument("--data_root", default=r'D:\ty\misp\misp2021_baseline\task1_wws\data', type=str)
     args = parser.parse_args()
     scp_name = ['positive_train', 'negative_train']
     data_root = args.data_root
@@ -55,8 +55,8 @@ if __name__ == '__main__':
     negative_dev_middle = [os.path.join(data_root, 'negative/audio/dev/middle/*_1_*_*.wav')]
     negative_dev_far = [os.path.join(data_root, 'negative/audio/dev/far/*_1_*_*.wav')]
     print('*************')
-    find_wav(positive_train, 'scp_dir', 'positive_train')
-    find_wav(negative_train, 'scp_dir', 'negative_train')
+    # find_wav(positive_train, 'scp_dir', 'positive_train')
+    # find_wav(negative_train, 'scp_dir', 'negative_train')
     find_wav(positive_dev_middle, 'scp_dir', 'positive_dev_middle')
     find_wav(positive_dev_far, 'scp_dir', 'positive_dev_far')
     find_wav(negative_dev_middle, 'scp_dir', 'negative_dev_middle')

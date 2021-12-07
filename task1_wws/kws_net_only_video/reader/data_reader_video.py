@@ -30,9 +30,12 @@ class myDataset(Dataset):
         cur_idx = idx
         video_path = self.files_scp[cur_idx]
 
+        # file = np.load(video_path)
+        # lip_feature = np.squeeze(np.load(file), axis=3)
+
         lip_feature = np.squeeze(np.load(video_path), axis=3)
         T = lip_feature.shape[0]
-        lip_feature = (lip_feature[:T,:,:]-np.tile(self.lip_train_mean,(T,1,1)))/np.sqrt(np.tile(self.lip_train_var,(T,1,1))+1e-6)
+        lip_feature = (lip_feature[:T,:,:]-np.tile(self.lip_train_mean, (T, 1, 1)))/np.sqrt(np.tile(self.lip_train_var, (T, 1, 1))+1e-6)
         
         if cur_idx < len(self.files_scp_wakeup):
             data_label = 1.0

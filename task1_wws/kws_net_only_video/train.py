@@ -9,11 +9,15 @@ import torch.nn as nn
 import sys
 import copy
 import random
+
+from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
+
 sys.path.append("..")
 from tools import utils
 from model.video_kwsnet import KWS_Net
 from reader.data_reader_video import myDataLoader, myDataset
+
 
 def main(args):
     # Compile and configure all the model parameters.
@@ -32,25 +36,25 @@ def main(args):
     file_train_negative_path = 'scp_dir/negative_train.scp'
     file_dev_positive_path = 'scp_dir/positive_dev.scp'
     file_dev_negative_path = 'scp_dir/negative_dev.scp'
-    
+
     # define the dataloader
     print("loading the dataset ...")
     dataset_train = myDataset(file_train_positive_path, file_train_negative_path, lip_train_mean, lip_train_var)
     dataset_dev = myDataset(file_dev_positive_path, file_dev_negative_path, lip_train_mean, lip_train_var)
     dataloader_train = myDataLoader(dataset=dataset_train,
-                            batch_size=args.minibatchsize_train,
-                            shuffle=True,
-                            num_workers=args.train_num_workers)
+                                    batch_size=args.minibatchsize_train,
+                                    shuffle=True,
+                                    num_workers=args.train_num_workers)
     dataloader_dev = myDataLoader(dataset=dataset_dev,
-                            batch_size=args.minibatchsize_dev,
-                            shuffle=False,
-                            num_workers=args.dev_num_workers)
+                                  batch_size=args.minibatchsize_dev,
+                                  shuffle=False,
+                                  num_workers=args.dev_num_workers)
     print("- done.")
     all_file = len(dataloader_train)
     all_file_dev = len(dataloader_dev)
     print("- {} training samples, {} dev samples".format(len(dataset_train), len(dataset_dev)))
     print("- {} training batch, {} dev batch".format(len(dataloader_train), len(dataloader_dev)))
-    
+
     # define the model
     nnet = KWS_Net(args=args)
     nnet = nnet.cuda()
@@ -59,16 +63,20 @@ def main(args):
     model_dict = nnet.lip_encoder.state_dict()
     new_model_dict = dict()
     for k, v in model_dict.items():
-        if ('video_frontend.' + k) in pretrained_dict.keys() and v.size() == pretrained_dict['video_frontend.' + k].size():
+        if ('video_frontend.' + k) in pretrained_dict.keys() and v.size() == pretrained_dict[
+            'video_frontend.' + k].size():
             new_model_dict[k] = pretrained_dict['video_frontend.' + k]
     new_model_dict = {k: v for k, v in new_model_dict.items()
-                    if k in model_dict.keys()
-                    and v.size() == model_dict[k].size()}
+                      if k in model_dict.keys()
+                      and v.size() == model_dict[k].size()}
     nnet.lip_encoder.load_state_dict(new_model_dict)
 
     # training setups
     optimizer = optim.Adam(nnet.parameters(), lr=args.lr)
-    BCE_loss = torch.nn.BCEWithLogitsLoss(pos_weight=torch.tensor(1.0)) 
+    BCE_loss = torch.nn.BCEWithLogitsLoss(pos_weight=torch.tensor(1.0))
+
+    # tensorboard
+    writer = SummaryWriter("logs")
 
     for iter_ in range(args.end_iter):
         start_time = time.time()
@@ -98,19 +106,30 @@ def main(args):
                 data_label_torch_dev = data_label_torch_dev.cuda()
                 outputs_dev = nnet(video_feature_dev, current_frame_dev)
                 loss_dev = BCE_loss(outputs_dev, data_label_torch_dev)
-                
+
                 running_loss_dev += loss_dev.item()
-                outputs_dev_np = (torch.ceil(torch.sigmoid(outputs_dev)-0.5)).data.cpu().numpy()
-                pre_list.extend(outputs_dev_np[:,0])
+                outputs_dev_np = (torch.ceil(torch.sigmoid(outputs_dev) - 0.5)).data.cpu().numpy()
+                pre_list.extend(outputs_dev_np[:, 0])
                 label_list.extend(list(data_label_torch_dev.data.cpu().numpy()))
-                
+
             TP, FP, TN, FN = utils.cal_indicator(pre_list, label_list)
 
             FAR = FP / (FP + TN)
             FRR = 1 - TP / (TP + FN)
+            Score = FAR + FRR
 
-            logger.info("Middle video Epoch:%d, Train loss=%.4f, Valid loss=%.4f, FAR=%.4f, FRR:%.4f" % (iter_,
-                        running_loss / all_file,running_loss_dev /all_file_dev, FAR,FRR))
+            writer.add_scalar("train_loss", running_loss / all_file, iter_)
+            writer.add_scalar("test_loss", running_loss_dev / all_file_dev, iter_)
+            writer.add_scalar("FAR", FAR, iter_)
+            writer.add_scalar("test_loss", FRR, iter_)
+            writer.add_scalar("Score", Score, iter_)
+
+            logger.info(
+                "Middle video Epoch:%d, Train loss=%.4f, Valid loss=%.4f, FAR=%.4f, FRR:%.4f, Score:%.4f" % (iter_,
+                                                                                                             running_loss / all_file,
+                                                                                                             running_loss_dev / all_file_dev,
+                                                                                                             FAR, FRR,
+                                                                                                             Score))
 
         torch.save(nnet.state_dict(), os.path.join(model_path, "{}_{}.model".format(args.model_name, iter_)))
         nnet.train()
@@ -118,6 +137,7 @@ def main(args):
         end_time = time.time()
         logger.info("Time used for each epoch training: {} seconds.".format(end_time - start_time))
         logger.info("*" * 50)
+
 
 def seed_torch(seed=42):
     seed = int(seed)
@@ -131,11 +151,12 @@ def seed_torch(seed=42):
     torch.backends.cudnn.benchmark = False
     torch.backends.cudnn.enabled = True
 
-if __name__=="__main__":
+
+if __name__ == "__main__":
     # Arguement Parser
     parser = argparse.ArgumentParser()
-    parser.add_argument("--lr", default=5e-5, type=float, help="learning rate")
-    parser.add_argument("--minibatchsize_train", default=16, type=int)
+    parser.add_argument("--lr", default=1e-4, type=float, help="learning rate")
+    parser.add_argument("--minibatchsize_train", default=4, type=int)
     parser.add_argument("--minibatchsize_dev", default=1, type=int)
     parser.add_argument("--input_dim", default=256, type=int)
     parser.add_argument("--hidden_sizes", default=256, type=int)
@@ -148,7 +169,7 @@ if __name__=="__main__":
     parser.add_argument("--start_iter", default=0, type=int)
     parser.add_argument("--end_iter", default=20, type=int)
     parser.add_argument("--gpu", default="0", type=str)
-    parser.add_argument("--train_num_workers", default=8, type=int, help="number of training workers")
+    parser.add_argument("--train_num_workers", default=1, type=int, help="number of training workers")
     parser.add_argument("--dev_num_workers", default=1, type=int, help="number of validation workers")
     args = parser.parse_args()
 
